@@ -1,0 +1,70 @@
+name: Auto Build Sesame-AG APK
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 每天 3 点自动运行
+  workflow_dispatch:      # 手动触发也可以
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Checkout 仓库 main 分支
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # 2. 获取原仓库最新 tag
+    - name: Get latest upstream tag
+      id: tag
+      run: |
+        LATEST_TAG=$(curl -s https://api.github.com/repos/Sesame-AG/Sesame-AG/tags | jq -r '.[0].name')
+        echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+        echo "Latest tag: $LATEST_TAG"
+
+    # 3. 下载源码 zip 并解压
+    - name: Download release source
+      run: |
+        curl -L -o "${LATEST_TAG}.zip" "https://github.com/Sesame-AG/Sesame-AG/archive/refs/tags/${LATEST_TAG}.zip"
+        unzip -q "${LATEST_TAG}.zip"
+        mv "Sesame-AG-${LATEST_TAG}" src
+
+    # 4. 设置 Java 17
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: 17
+
+    # 5. 构建 APK
+    - name: Build APK
+      working-directory: src
+      run: |
+        chmod +x ./gradlew
+        ./gradlew assembleRelease
+        mkdir -p ../output
+        cp $(find ./app/build/outputs/apk/release -name "*release*.apk") ../output/
+
+    # 6. 上传 APK 作为 artifact（可下载）
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Sesame-AG-APK-${{ env.LATEST_TAG }}
+        path: output/*.apk
+
+    # 7. 发布到仓库 Release
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.LATEST_TAG }}
+        name: Release ${{ env.LATEST_TAG }}
+        body: Auto build from upstream
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload APK to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: output/*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
