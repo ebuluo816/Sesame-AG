@@ -47,7 +47,7 @@ jobs:
 
     # 6. 上传 APK 作为 artifact（可下载）
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Sesame-AG-APK-${{ env.LATEST_TAG }}
         path: output/*.apk
